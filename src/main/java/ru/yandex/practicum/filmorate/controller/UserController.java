@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
 
@@ -40,27 +41,30 @@ public class UserController {
 
         setDefaultName(user);
 
-        for (int i = 0; i < users.size(); i++) {
-            User oldUser = users.get(i);
+        User oldUser = users.stream()
+                .filter(existingUser -> existingUser.getId() == user.getId())
+                .findFirst()
+                .orElseThrow(() -> {
+                    log.error(
+                            "Пользователь с id={} не найден",
+                            user.getId()
+                    );
 
-            if (oldUser.getId() == user.getId()) {
-                users.set(i, user);
+                    return new NotFoundException(
+                            "Пользователь с id=" + user.getId() + " не найден"
+                    );
+                });
 
-                log.info(
-                        "Обновлён пользователь с id={}: {}",
-                        user.getId(),
-                        user
-                );
+        int index = users.indexOf(oldUser);
+        users.set(index, user);
 
-                return user;
-            }
-        }
-
-        log.error("Пользователь с id={} не найден", user.getId());
-
-        throw new ValidationException(
-                "Пользователь с id=" + user.getId() + " не найден"
+        log.info(
+                "Обновлён пользователь с id={}: {}",
+                user.getId(),
+                user
         );
+
+        return user;
     }
 
     @GetMapping

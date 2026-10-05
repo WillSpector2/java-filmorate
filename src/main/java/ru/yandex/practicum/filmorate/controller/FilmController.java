@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
 
@@ -39,23 +40,23 @@ public class FilmController {
     public Film updateFilm(@Valid @RequestBody Film film) {
         validateFilm(film);
 
-        for (int i = 0; i < films.size(); i++) {
-            Film oldFilm = films.get(i);
+        Film oldFilm = films.stream()
+                .filter(existingFilm -> existingFilm.getId() == film.getId())
+                .findFirst()
+                .orElseThrow(() -> {
+                    log.error("Фильм с id={} не найден", film.getId());
 
-            if (oldFilm.getId() == film.getId()) {
-                films.set(i, film);
+                    return new NotFoundException(
+                            "Фильм с id=" + film.getId() + " не найден"
+                    );
+                });
 
-                log.info("Обновлён фильм с id={}: {}", film.getId(), film);
+        int index = films.indexOf(oldFilm);
+        films.set(index, film);
 
-                return film;
-            }
-        }
+        log.info("Обновлён фильм с id={}: {}", film.getId(), film);
 
-        log.error("Фильм с id={} не найден", film.getId());
-
-        throw new ValidationException(
-                "Фильм с id=" + film.getId() + " не найден"
-        );
+        return film;
     }
 
     @GetMapping

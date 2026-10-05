@@ -68,4 +68,18 @@ public class ErrorHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .body(error);
     }
+
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleNotFoundException(
+            NotFoundException exception) {
+
+        log.error("Ресурс не найден: {}", exception.getMessage());
+
+        Map<String, String> error = new HashMap<>();
+        error.put("ошибка", exception.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(error);
+    }
 }
