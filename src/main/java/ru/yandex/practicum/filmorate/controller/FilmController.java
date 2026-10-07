@@ -2,14 +2,14 @@ package ru.yandex.practicum.filmorate.controller;
 
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
+import ru.yandex.practicum.filmorate.service.FilmService;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -20,48 +20,83 @@ public class FilmController {
     private static final LocalDate FIRST_FILM_DATE =
             LocalDate.of(1895, 12, 28);
 
-    private final List<Film> films = new ArrayList<>();
+    private final FilmService filmService;
+
+    @Autowired
+    public FilmController(FilmService filmService) {
+        this.filmService = filmService;
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Film createFilm(@Valid @RequestBody Film film) {
         validateFilm(film);
 
-        film.setId(getNextId());
+        Film createdFilm = filmService.createFilm(film);
 
-        films.add(film);
+        log.info("Добавлен фильм: {}", createdFilm);
 
-        log.info("Добавлен фильм: {}", film);
-
-        return film;
+        return createdFilm;
     }
 
     @PutMapping
     public Film updateFilm(@Valid @RequestBody Film film) {
         validateFilm(film);
 
-        Film oldFilm = films.stream()
-                .filter(existingFilm -> existingFilm.getId() == film.getId())
-                .findFirst()
-                .orElseThrow(() -> {
-                    log.error("Фильм с id={} не найден", film.getId());
+        Film updatedFilm = filmService.updateFilm(film);
 
-                    return new NotFoundException(
-                            "Фильм с id=" + film.getId() + " не найден"
-                    );
-                });
+        log.info(
+                "Обновлён фильм с id={}: {}",
+                updatedFilm.getId(),
+                updatedFilm
+        );
 
-        int index = films.indexOf(oldFilm);
-        films.set(index, film);
-
-        log.info("Обновлён фильм с id={}: {}", film.getId(), film);
-
-        return film;
+        return updatedFilm;
     }
 
     @GetMapping
     public List<Film> getFilms() {
-        return new ArrayList<>(films);
+        return filmService.getFilms();
+    }
+
+    @GetMapping("/{id}")
+    public Film getFilmById(@PathVariable int id) {
+        return filmService.getFilmById(id);
+    }
+
+    @PutMapping("/{id}/like/{userId}")
+    public void addLike(
+            @PathVariable int id,
+            @PathVariable int userId) {
+
+        filmService.addLike(id, userId);
+
+        log.info(
+                "Пользователь с id={} поставил лайк фильму с id={}",
+                userId,
+                id
+        );
+    }
+
+    @DeleteMapping("/{id}/like/{userId}")
+    public void removeLike(
+            @PathVariable int id,
+            @PathVariable int userId) {
+
+        filmService.removeLike(id, userId);
+
+        log.info(
+                "Пользователь с id={} удалил лайк у фильма с id={}",
+                userId,
+                id
+        );
+    }
+
+    @GetMapping("/popular")
+    public List<Film> getPopularFilms(
+            @RequestParam(defaultValue = "10") int count) {
+
+        return filmService.getPopularFilms(count);
     }
 
     private void validateFilm(Film film) {
@@ -89,12 +124,5 @@ public class FilmController {
                     "Продолжительность фильма должна быть положительным числом"
             );
         }
-    }
-
-    private int getNextId() {
-        return films.stream()
-                .mapToInt(Film::getId)
-                .max()
-                .orElse(0) + 1;
     }
 }
