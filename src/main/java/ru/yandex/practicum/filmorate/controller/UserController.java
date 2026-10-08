@@ -2,14 +2,14 @@ package ru.yandex.practicum.filmorate.controller;
 
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
+import ru.yandex.practicum.filmorate.service.UserService;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -17,7 +17,12 @@ import java.util.List;
 @RequestMapping("/users")
 public class UserController {
 
-    private final List<User> users = new ArrayList<>();
+    private final UserService userService;
+
+    @Autowired
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -26,13 +31,11 @@ public class UserController {
 
         setDefaultName(user);
 
-        user.setId(getNextId());
+        User createdUser = userService.createUser(user);
 
-        users.add(user);
+        log.info("Добавлен пользователь: {}", createdUser);
 
-        log.info("Добавлен пользователь: {}", user);
-
-        return user;
+        return createdUser;
     }
 
     @PutMapping
@@ -41,35 +44,66 @@ public class UserController {
 
         setDefaultName(user);
 
-        User oldUser = users.stream()
-                .filter(existingUser -> existingUser.getId() == user.getId())
-                .findFirst()
-                .orElseThrow(() -> {
-                    log.error(
-                            "Пользователь с id={} не найден",
-                            user.getId()
-                    );
-
-                    return new NotFoundException(
-                            "Пользователь с id=" + user.getId() + " не найден"
-                    );
-                });
-
-        int index = users.indexOf(oldUser);
-        users.set(index, user);
+        User updatedUser = userService.updateUser(user);
 
         log.info(
                 "Обновлён пользователь с id={}: {}",
-                user.getId(),
-                user
+                updatedUser.getId(),
+                updatedUser
         );
 
-        return user;
+        return updatedUser;
     }
 
     @GetMapping
     public List<User> getUsers() {
-        return new ArrayList<>(users);
+        return userService.getUsers();
+    }
+
+    @GetMapping("/{id}")
+    public User getUserById(@PathVariable int id) {
+        return userService.getUserById(id);
+    }
+
+    @PutMapping("/{id}/friends/{friendId}")
+    public void addFriend(
+            @PathVariable int id,
+            @PathVariable int friendId) {
+
+        userService.addFriend(id, friendId);
+
+        log.info(
+                "Пользователи с id={} и id={} добавлены в друзья",
+                id,
+                friendId
+        );
+    }
+
+    @DeleteMapping("/{id}/friends/{friendId}")
+    public void removeFriend(
+            @PathVariable int id,
+            @PathVariable int friendId) {
+
+        userService.removeFriend(id, friendId);
+
+        log.info(
+                "Пользователи с id={} и id={} удалены из друзей",
+                id,
+                friendId
+        );
+    }
+
+    @GetMapping("/{id}/friends")
+    public List<User> getFriends(@PathVariable int id) {
+        return userService.getFriends(id);
+    }
+
+    @GetMapping("/{id}/friends/common/{otherId}")
+    public List<User> getCommonFriends(
+            @PathVariable int id,
+            @PathVariable int otherId) {
+
+        return userService.getCommonFriends(id, otherId);
     }
 
     private void validateUser(User user) {
@@ -104,12 +138,5 @@ public class UserController {
         if (user.getName() == null || user.getName().isBlank()) {
             user.setName(user.getLogin());
         }
-    }
-
-    private int getNextId() {
-        return users.stream()
-                .mapToInt(User::getId)
-                .max()
-                .orElse(0) + 1;
     }
 }
