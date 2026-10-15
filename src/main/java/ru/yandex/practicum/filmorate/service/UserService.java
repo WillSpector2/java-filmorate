@@ -2,6 +2,8 @@ package ru.yandex.practicum.filmorate.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import ru.yandex.practicum.filmorate.model.Friendship;
+import ru.yandex.practicum.filmorate.model.FriendshipStatus;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
@@ -36,21 +38,42 @@ public class UserService {
         return userStorage.getById(id);
     }
 
-    public void addFriend(int userId, int friendId) {
+    public Friendship addFriend(int userId, int friendId) {
         User user = userStorage.getById(userId);
         User friend = userStorage.getById(friendId);
 
-        user.getFriends().add(friendId);
-        friend.getFriends().add(userId);
+        // Проверяем, отправлял ли второй пользователь запрос первым.
+        boolean incomingRequestExists = friend.getFriends().contains(userId);
 
+        // Добавляем друга в список инициатора запроса.
+        user.getFriends().add(friendId);
         userStorage.update(user);
-        userStorage.update(friend);
+
+        Friendship friendship = new Friendship();
+
+        if (incomingRequestExists) {
+            // Встречный запрос подтверждает дружбу.
+            friend.getFriends().add(userId);
+            userStorage.update(friend);
+
+            friendship.setUserId(friendId);
+            friendship.setFriendId(userId);
+            friendship.setStatus(FriendshipStatus.CONFIRMED);
+        } else {
+            // Запрос пока не подтверждён.
+            friendship.setUserId(userId);
+            friendship.setFriendId(friendId);
+            friendship.setStatus(FriendshipStatus.UNCONFIRMED);
+        }
+
+        return friendship;
     }
 
     public void removeFriend(int userId, int friendId) {
         User user = userStorage.getById(userId);
         User friend = userStorage.getById(friendId);
 
+        // Удаляем связь с обеих сторон.
         user.getFriends().remove(friendId);
         friend.getFriends().remove(userId);
 
@@ -60,22 +83,39 @@ public class UserService {
 
     public List<User> getFriends(int userId) {
         User user = userStorage.getById(userId);
-
         List<User> friends = new ArrayList<>();
 
+        // Возвращаем только подтверждённых друзей.
         for (Integer friendId : user.getFriends()) {
-            friends.add(userStorage.getById(friendId));
+            User friend = userStorage.getById(friendId);
+
+            if (friend.getFriends().contains(userId)) {
+                friends.add(friend);
+            }
         }
 
         return friends;
     }
 
     public List<User> getCommonFriends(int userId, int otherId) {
-        User user = userStorage.getById(userId);
-        User otherUser = userStorage.getById(otherId);
+        // Получаем только подтверждённых друзей обоих пользователей.
+        List<User> userFriends = getFriends(userId);
+        List<User> otherFriends = getFriends(otherId);
 
-        Set<Integer> commonFriendIds = new HashSet<>(user.getFriends());
-        commonFriendIds.retainAll(otherUser.getFriends());
+        Set<Integer> commonFriendIds = new HashSet<>();
+
+        for (User friend : userFriends) {
+            commonFriendIds.add(friend.getId());
+        }
+
+        Set<Integer> otherFriendIds = new HashSet<>();
+
+        for (User friend : otherFriends) {
+            otherFriendIds.add(friend.getId());
+        }
+
+        // Оставляем только общих друзей.
+        commonFriendIds.retainAll(otherFriendIds);
 
         List<User> commonFriends = new ArrayList<>();
 
