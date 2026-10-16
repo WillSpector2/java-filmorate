@@ -50,19 +50,17 @@ public class UserService {
         userStorage.update(user);
 
         Friendship friendship = new Friendship();
+        friendship.setUserId(userId);
+        friendship.setFriendId(friendId);
 
         if (incomingRequestExists) {
             // Встречный запрос подтверждает дружбу.
             friend.getFriends().add(userId);
             userStorage.update(friend);
 
-            friendship.setUserId(friendId);
-            friendship.setFriendId(userId);
             friendship.setStatus(FriendshipStatus.CONFIRMED);
         } else {
-            // Запрос пока не подтверждён.
-            friendship.setUserId(userId);
-            friendship.setFriendId(friendId);
+            // Первый запрос пока не подтверждён.
             friendship.setStatus(FriendshipStatus.UNCONFIRMED);
         }
 
@@ -85,7 +83,7 @@ public class UserService {
         User user = userStorage.getById(userId);
         List<User> friends = new ArrayList<>();
 
-        // Возвращаем только подтверждённых друзей.
+        // Возвращаем только взаимно подтверждённых друзей.
         for (Integer friendId : user.getFriends()) {
             User friend = userStorage.getById(friendId);
 
@@ -98,7 +96,6 @@ public class UserService {
     }
 
     public List<User> getCommonFriends(int userId, int otherId) {
-        // Получаем только подтверждённых друзей обоих пользователей.
         List<User> userFriends = getFriends(userId);
         List<User> otherFriends = getFriends(otherId);
 
