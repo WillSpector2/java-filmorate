@@ -1,0 +1,66 @@
+// Filmorate normalized relational schema (PostgreSQL-oriented)
+
+Table users {
+  id integer [pk, increment]
+  email varchar(254) [not null, unique]
+  login varchar(100) [not null, unique]
+  name varchar(100)
+  birthday date [not null]
+}
+
+Table films {
+  id integer [pk, increment]
+  name varchar(255) [not null]
+  description varchar(200)
+  release_date date [not null]
+  duration integer [not null, note: 'Must be greater than 0']
+  mpa_id integer [ref: > mpa_ratings.id, note: 'Nullable while MPA is optional in the current Java model']
+}
+
+Table genres {
+  id integer [pk, increment]
+  name varchar(50) [not null, unique]
+}
+
+Table mpa_ratings {
+  id integer [pk, increment]
+  name varchar(10) [not null, unique, note: 'G, PG, PG-13, R, NC-17']
+}
+
+Table film_genres {
+  film_id integer [not null, ref: > films.id]
+  genre_id integer [not null, ref: > genres.id]
+
+  indexes {
+    (film_id, genre_id) [pk]
+    (genre_id)
+  }
+}
+
+Table film_likes {
+  film_id integer [not null, ref: > films.id]
+  user_id integer [not null, ref: > users.id]
+
+  indexes {
+    (film_id, user_id) [pk]
+    (user_id)
+  }
+}
+
+Table friendships {
+  user_id integer [not null, ref: > users.id, note: 'User who sent the request']
+  friend_id integer [not null, ref: > users.id, note: 'Recipient of the request']
+  status varchar(12) [not null, note: 'UNCONFIRMED or CONFIRMED']
+
+  indexes {
+    (user_id, friend_id) [pk]
+    (friend_id, status)
+  }
+
+  Note: 'One directed row per request. When the recipient accepts, update this row to CONFIRMED; do not insert a reverse row. A pair must not contain the same user twice.'
+}
+
+// Add these PostgreSQL constraints in the actual DDL:
+// CHECK (duration > 0) on films
+// CHECK (status IN ('UNCONFIRMED', 'CONFIRMED')) on friendships
+// CHECK (user_id <> friend_id) on friendships
