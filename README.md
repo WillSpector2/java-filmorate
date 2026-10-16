@@ -1,5 +1,7 @@
 # java-filmorate
+
 Template repository for Filmorate project.
+
 ## Database schema
 
 The normalized relational schema is shown below. Values with multiple relationships are stored in join tables rather than arrays or comma-separated strings.
@@ -170,4 +172,3 @@ DELETE FROM friendships
 WHERE (user_id = $1 AND friend_id = $2)
    OR (user_id = $2 AND friend_id = $1);
 ```
-
