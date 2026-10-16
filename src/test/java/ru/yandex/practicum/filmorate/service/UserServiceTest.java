@@ -44,8 +44,12 @@ class UserServiceTest {
         );
 
         assertEquals(FriendshipStatus.UNCONFIRMED, friendship.getStatus());
-        assertTrue(firstUser.getFriends().contains(secondUser.getId()));
-        assertFalse(secondUser.getFriends().contains(firstUser.getId()));
+
+        User updatedFirstUser = userStorage.getById(firstUser.getId());
+        User updatedSecondUser = userStorage.getById(secondUser.getId());
+
+        assertTrue(updatedFirstUser.getFriends().contains(secondUser.getId()));
+        assertFalse(updatedSecondUser.getFriends().contains(firstUser.getId()));
 
         // Неподтверждённый запрос ещё не считается дружбой.
         assertTrue(userService.getFriends(firstUser.getId()).isEmpty());
@@ -64,8 +68,12 @@ class UserServiceTest {
         );
 
         assertEquals(FriendshipStatus.CONFIRMED, friendship.getStatus());
-        assertTrue(firstUser.getFriends().contains(secondUser.getId()));
-        assertTrue(secondUser.getFriends().contains(firstUser.getId()));
+
+        User updatedFirstUser = userStorage.getById(firstUser.getId());
+        User updatedSecondUser = userStorage.getById(secondUser.getId());
+
+        assertTrue(updatedFirstUser.getFriends().contains(secondUser.getId()));
+        assertTrue(updatedSecondUser.getFriends().contains(firstUser.getId()));
 
         assertEquals(1, userService.getFriends(firstUser.getId()).size());
         assertEquals(1, userService.getFriends(secondUser.getId()).size());
@@ -81,8 +89,11 @@ class UserServiceTest {
                 secondUser.getId()
         );
 
-        assertFalse(firstUser.getFriends().contains(secondUser.getId()));
-        assertFalse(secondUser.getFriends().contains(firstUser.getId()));
+        User updatedFirstUser = userStorage.getById(firstUser.getId());
+        User updatedSecondUser = userStorage.getById(secondUser.getId());
+
+        assertFalse(updatedFirstUser.getFriends().contains(secondUser.getId()));
+        assertFalse(updatedSecondUser.getFriends().contains(firstUser.getId()));
         assertTrue(userService.getFriends(firstUser.getId()).isEmpty());
     }
 

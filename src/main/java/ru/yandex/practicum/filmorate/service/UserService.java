@@ -42,10 +42,9 @@ public class UserService {
         User user = userStorage.getById(userId);
         User friend = userStorage.getById(friendId);
 
-        // Проверяем, отправлял ли второй пользователь запрос первым.
-        boolean incomingRequestExists = friend.getFriends().contains(userId);
+        boolean incomingRequestExists =
+                friend.getFriends().contains(userId);
 
-        // Добавляем друга в список инициатора запроса.
         user.getFriends().add(friendId);
         userStorage.update(user);
 
@@ -54,13 +53,11 @@ public class UserService {
         friendship.setFriendId(friendId);
 
         if (incomingRequestExists) {
-            // Встречный запрос подтверждает дружбу.
             friend.getFriends().add(userId);
             userStorage.update(friend);
 
             friendship.setStatus(FriendshipStatus.CONFIRMED);
         } else {
-            // Первый запрос пока не подтверждён.
             friendship.setStatus(FriendshipStatus.UNCONFIRMED);
         }
 
@@ -71,7 +68,6 @@ public class UserService {
         User user = userStorage.getById(userId);
         User friend = userStorage.getById(friendId);
 
-        // Удаляем связь с обеих сторон.
         user.getFriends().remove(friendId);
         friend.getFriends().remove(userId);
 
@@ -83,7 +79,6 @@ public class UserService {
         User user = userStorage.getById(userId);
         List<User> friends = new ArrayList<>();
 
-        // Возвращаем только взаимно подтверждённых друзей.
         for (Integer friendId : user.getFriends()) {
             User friend = userStorage.getById(friendId);
 
@@ -99,25 +94,18 @@ public class UserService {
         List<User> userFriends = getFriends(userId);
         List<User> otherFriends = getFriends(otherId);
 
-        Set<Integer> commonFriendIds = new HashSet<>();
-
-        for (User friend : userFriends) {
-            commonFriendIds.add(friend.getId());
-        }
-
         Set<Integer> otherFriendIds = new HashSet<>();
 
         for (User friend : otherFriends) {
             otherFriendIds.add(friend.getId());
         }
 
-        // Оставляем только общих друзей.
-        commonFriendIds.retainAll(otherFriendIds);
-
         List<User> commonFriends = new ArrayList<>();
 
-        for (Integer friendId : commonFriendIds) {
-            commonFriends.add(userStorage.getById(friendId));
+        for (User friend : userFriends) {
+            if (otherFriendIds.contains(friend.getId())) {
+                commonFriends.add(friend);
+            }
         }
 
         return commonFriends;
