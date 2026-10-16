@@ -6,6 +6,8 @@ import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.service.FilmService;
+import ru.yandex.practicum.filmorate.service.GenreService;
+import ru.yandex.practicum.filmorate.service.MpaService;
 import ru.yandex.practicum.filmorate.storage.film.FilmStorage;
 import ru.yandex.practicum.filmorate.storage.film.InMemoryFilmStorage;
 import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
@@ -24,7 +26,13 @@ class FilmControllerTest {
     void setUp() {
         FilmStorage filmStorage = new InMemoryFilmStorage();
         UserStorage userStorage = new InMemoryUserStorage();
-        FilmService filmService = new FilmService(filmStorage, userStorage);
+
+        FilmService filmService = new FilmService(
+                filmStorage,
+                userStorage,
+                new GenreService(),
+                new MpaService()
+        );
 
         controller = new FilmController(filmService);
     }
@@ -42,11 +50,13 @@ class FilmControllerTest {
     @Test
     void shouldUpdateExistingFilm() {
         Film film = createFilm();
-        controller.createFilm(film);
+        Film created = controller.createFilm(film);
 
-        film.setName("DogGod");
+        Film updatedFilm = createFilm();
+        updatedFilm.setId(created.getId());
+        updatedFilm.setName("DogGod");
 
-        Film updated = controller.updateFilm(film);
+        Film updated = controller.updateFilm(updatedFilm);
 
         assertEquals("DogGod", updated.getName());
         assertEquals(1, controller.getFilms().size());

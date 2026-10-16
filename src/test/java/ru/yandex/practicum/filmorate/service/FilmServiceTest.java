@@ -28,7 +28,13 @@ class FilmServiceTest {
     void setUp() {
         filmStorage = new InMemoryFilmStorage();
         userStorage = new InMemoryUserStorage();
-        filmService = new FilmService(filmStorage, userStorage);
+
+        filmService = new FilmService(
+                filmStorage,
+                userStorage,
+                new GenreService(),
+                new MpaService()
+        );
 
         firstUser = createUser("first@example.com", "first");
         secondUser = createUser("second@example.com", "second");
