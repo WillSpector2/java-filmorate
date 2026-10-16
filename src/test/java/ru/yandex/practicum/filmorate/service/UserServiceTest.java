@@ -47,7 +47,6 @@ class UserServiceTest {
         User updatedFirstUser = userStorage.getById(firstUser.getId());
         assertTrue(updatedFirstUser.getFriends().contains(secondUser.getId()));
 
-        // По ТЗ Практикума для InMemory: если добавили, то пользователь сразу друг!
         assertEquals(1, userService.getFriends(firstUser.getId()).size());
     }
 
@@ -87,8 +86,10 @@ class UserServiceTest {
         User updatedSecondUser = userStorage.getById(secondUser.getId());
 
         assertFalse(updatedFirstUser.getFriends().contains(secondUser.getId()));
-        assertFalse(updatedSecondUser.getFriends().contains(firstUser.getId()));
         assertTrue(userService.getFriends(firstUser.getId()).isEmpty());
+
+        assertTrue(updatedSecondUser.getFriends().contains(firstUser.getId()));
+        assertEquals(1, userService.getFriends(secondUser.getId()).size());
     }
 
     @Test
@@ -105,7 +106,6 @@ class UserServiceTest {
 
         List<User> friends = userService.getFriends(firstUser.getId());
 
-        // Ожидаем двух друзей, так как одобрение не требуется в InMemory
         assertEquals(2, friends.size());
     }
 
