@@ -62,13 +62,11 @@ public class UserService {
 
     public void removeFriend(int userId, int friendId) {
         User user = userStorage.getById(userId);
-        User friend = userStorage.getById(friendId);
+        userStorage.getById(friendId);
 
         user.getFriends().remove(friendId);
-        friend.getFriends().remove(userId);
 
         userStorage.update(user);
-        userStorage.update(friend);
     }
 
     public List<User> getFriends(int userId) {
