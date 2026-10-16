@@ -42,20 +42,16 @@ public class UserService {
         User user = userStorage.getById(userId);
         User friend = userStorage.getById(friendId);
 
-        boolean incomingRequestExists =
-                friend.getFriends().contains(userId);
-
         user.getFriends().add(friendId);
         userStorage.update(user);
+
+        boolean incomingRequestExists = friend.getFriends().contains(userId);
 
         Friendship friendship = new Friendship();
         friendship.setUserId(userId);
         friendship.setFriendId(friendId);
 
         if (incomingRequestExists) {
-            friend.getFriends().add(userId);
-            userStorage.update(friend);
-
             friendship.setStatus(FriendshipStatus.CONFIRMED);
         } else {
             friendship.setStatus(FriendshipStatus.UNCONFIRMED);
@@ -80,11 +76,7 @@ public class UserService {
         List<User> friends = new ArrayList<>();
 
         for (Integer friendId : user.getFriends()) {
-            User friend = userStorage.getById(friendId);
-
-            if (friend.getFriends().contains(userId)) {
-                friends.add(friend);
-            }
+            friends.add(userStorage.getById(friendId));
         }
 
         return friends;
