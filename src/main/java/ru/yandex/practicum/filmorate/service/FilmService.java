@@ -1,6 +1,7 @@
 package ru.yandex.practicum.filmorate.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.model.Genre;
@@ -23,8 +24,8 @@ public class FilmService {
 
     @Autowired
     public FilmService(
-            FilmStorage filmStorage,
-            UserStorage userStorage,
+            @Qualifier("filmDbStorage") FilmStorage filmStorage,
+            @Qualifier("userDbStorage") UserStorage userStorage,
             GenreService genreService,
             MpaService mpaService
     ) {
@@ -40,6 +41,11 @@ public class FilmService {
     }
 
     public Film updateFilm(Film film) {
+        Film existingFilm = filmStorage.getById(film.getId());
+
+        // Обычное обновление фильма не должно удалять существующие лайки.
+        film.setLikes(existingFilm.getLikes());
+
         normalizeFilm(film);
         return filmStorage.update(film);
     }
@@ -89,8 +95,13 @@ public class FilmService {
             Map<Integer, Genre> uniqueGenres = new LinkedHashMap<>();
 
             for (Genre genre : film.getGenres()) {
-                Genre actualGenre = genreService.getGenreById(genre.getId());
-                uniqueGenres.putIfAbsent(actualGenre.getId(), actualGenre);
+                Genre actualGenre =
+                        genreService.getGenreById(genre.getId());
+
+                uniqueGenres.putIfAbsent(
+                        actualGenre.getId(),
+                        actualGenre
+                );
             }
 
             film.setGenres(List.copyOf(uniqueGenres.values()));
