@@ -16,6 +16,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,28 +25,89 @@ import java.util.Set;
 @Repository("filmDbStorage")
 public class FilmDbStorage implements FilmStorage {
 
+    private static final String INSERT_FILM_QUERY = """
+            INSERT INTO films
+                (name, description, release_date, duration, mpa_id)
+            VALUES (?, ?, ?, ?, ?)
+            """;
+
+    private static final String UPDATE_FILM_QUERY = """
+            UPDATE films
+            SET name = ?,
+                description = ?,
+                release_date = ?,
+                duration = ?,
+                mpa_id = ?
+            WHERE id = ?
+            """;
+
+    private static final String FIND_FILM_BY_ID_QUERY = """
+            SELECT f.id,
+                   f.name,
+                   f.description,
+                   f.release_date,
+                   f.duration,
+                   f.mpa_id,
+                   m.name AS mpa_name
+            FROM films f
+            LEFT JOIN mpa_ratings m ON f.mpa_id = m.id
+            WHERE f.id = ?
+            """;
+
+    private static final String FIND_ALL_FILM_IDS_QUERY =
+            "SELECT id FROM films ORDER BY id";
+
+    private static final String DELETE_FILM_QUERY =
+            "DELETE FROM films WHERE id = ?";
+
+    private static final String FIND_GENRES_BY_FILM_ID_QUERY = """
+            SELECT g.id, g.name
+            FROM genres g
+            JOIN film_genres fg ON fg.genre_id = g.id
+            WHERE fg.film_id = ?
+            ORDER BY g.id
+            """;
+
+    private static final String FIND_LIKES_BY_FILM_ID_QUERY = """
+            SELECT user_id
+            FROM film_likes
+            WHERE film_id = ?
+            ORDER BY user_id
+            """;
+
+    private static final String DELETE_FILM_GENRES_QUERY =
+            "DELETE FROM film_genres WHERE film_id = ?";
+
+    private static final String INSERT_FILM_GENRE_QUERY = """
+            INSERT INTO film_genres (film_id, genre_id)
+            VALUES (?, ?)
+            """;
+
+    private static final String DELETE_FILM_LIKES_QUERY =
+            "DELETE FROM film_likes WHERE film_id = ?";
+
+    private static final String INSERT_FILM_LIKE_QUERY = """
+            INSERT INTO film_likes (film_id, user_id)
+            VALUES (?, ?)
+            """;
+
     private final JdbcTemplate jdbcTemplate;
+
+    private final RowMapper<Film> filmRowMapper = this::mapFilm;
 
     public FilmDbStorage(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    private final RowMapper<Film> filmRowMapper = this::mapFilm;
-
     @Override
     @Transactional
     public Film add(Film film) {
-        String sql = """
-                INSERT INTO films
-                    (name, description, release_date, duration, mpa_id)
-                VALUES (?, ?, ?, ?, ?)
-                """;
-
         KeyHolder keyHolder = new GeneratedKeyHolder();
 
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                    sql, Statement.RETURN_GENERATED_KEYS
+                    INSERT_FILM_QUERY,
+                    Statement.RETURN_GENERATED_KEYS
             );
 
             statement.setString(1, film.getName());
@@ -59,7 +121,7 @@ public class FilmDbStorage implements FilmStorage {
             statement.setInt(4, film.getDuration());
 
             if (film.getMpa() == null) {
-                statement.setNull(5, java.sql.Types.INTEGER);
+                statement.setNull(5, Types.INTEGER);
             } else {
                 statement.setInt(5, film.getMpa().getId());
             }
@@ -86,21 +148,11 @@ public class FilmDbStorage implements FilmStorage {
     @Override
     @Transactional
     public Film update(Film film) {
-        // Сначала проверяем существование фильма и сохраняем его связи.
+        // Проверяем существование фильма и сохраняем его текущие связи.
         Film existingFilm = getById(film.getId());
 
-        String sql = """
-                UPDATE films
-                SET name = ?,
-                    description = ?,
-                    release_date = ?,
-                    duration = ?,
-                    mpa_id = ?
-                WHERE id = ?
-                """;
-
         int updatedRows = jdbcTemplate.update(
-                sql,
+                UPDATE_FILM_QUERY,
                 film.getName(),
                 film.getDescription(),
                 film.getReleaseDate() == null
@@ -135,18 +187,7 @@ public class FilmDbStorage implements FilmStorage {
     @Override
     public Film getById(int id) {
         List<Film> films = jdbcTemplate.query(
-                """
-                SELECT f.id,
-                       f.name,
-                       f.description,
-                       f.release_date,
-                       f.duration,
-                       f.mpa_id,
-                       m.name AS mpa_name
-                FROM films f
-                LEFT JOIN mpa_ratings m ON f.mpa_id = m.id
-                WHERE f.id = ?
-                """,
+                FIND_FILM_BY_ID_QUERY,
                 filmRowMapper,
                 id
         );
@@ -167,7 +208,7 @@ public class FilmDbStorage implements FilmStorage {
     @Override
     public List<Film> getAll() {
         List<Integer> filmIds = jdbcTemplate.query(
-                "SELECT id FROM films ORDER BY id",
+                FIND_ALL_FILM_IDS_QUERY,
                 (resultSet, rowNum) -> resultSet.getInt("id")
         );
 
@@ -183,10 +224,7 @@ public class FilmDbStorage implements FilmStorage {
     @Override
     @Transactional
     public boolean delete(int id) {
-        return jdbcTemplate.update(
-                "DELETE FROM films WHERE id = ?",
-                id
-        ) > 0;
+        return jdbcTemplate.update(DELETE_FILM_QUERY, id) > 0;
     }
 
     private Film mapFilm(ResultSet rs, int rowNum) throws SQLException {
@@ -217,13 +255,7 @@ public class FilmDbStorage implements FilmStorage {
 
     private List<Genre> getGenres(int filmId) {
         return jdbcTemplate.query(
-                """
-                SELECT g.id, g.name
-                FROM genres g
-                JOIN film_genres fg ON fg.genre_id = g.id
-                WHERE fg.film_id = ?
-                ORDER BY g.id
-                """,
+                FIND_GENRES_BY_FILM_ID_QUERY,
                 (rs, rowNum) -> {
                     Genre genre = new Genre();
                     genre.setId(rs.getInt("id"));
@@ -236,12 +268,7 @@ public class FilmDbStorage implements FilmStorage {
 
     private Set<Integer> getLikes(int filmId) {
         List<Integer> userIds = jdbcTemplate.query(
-                """
-                SELECT user_id
-                FROM film_likes
-                WHERE film_id = ?
-                ORDER BY user_id
-                """,
+                FIND_LIKES_BY_FILM_ID_QUERY,
                 (rs, rowNum) -> rs.getInt("user_id"),
                 filmId
         );
@@ -250,10 +277,7 @@ public class FilmDbStorage implements FilmStorage {
     }
 
     private void saveGenres(Film film) {
-        jdbcTemplate.update(
-                "DELETE FROM film_genres WHERE film_id = ?",
-                film.getId()
-        );
+        jdbcTemplate.update(DELETE_FILM_GENRES_QUERY, film.getId());
 
         if (film.getGenres() == null) {
             return;
@@ -264,10 +288,7 @@ public class FilmDbStorage implements FilmStorage {
         for (Genre genre : film.getGenres()) {
             if (genre != null && genreIds.add(genre.getId())) {
                 jdbcTemplate.update(
-                        """
-                        INSERT INTO film_genres (film_id, genre_id)
-                        VALUES (?, ?)
-                        """,
+                        INSERT_FILM_GENRE_QUERY,
                         film.getId(),
                         genre.getId()
                 );
@@ -276,10 +297,7 @@ public class FilmDbStorage implements FilmStorage {
     }
 
     private void saveLikes(Film film) {
-        jdbcTemplate.update(
-                "DELETE FROM film_likes WHERE film_id = ?",
-                film.getId()
-        );
+        jdbcTemplate.update(DELETE_FILM_LIKES_QUERY, film.getId());
 
         if (film.getLikes() == null) {
             return;
@@ -289,10 +307,7 @@ public class FilmDbStorage implements FilmStorage {
 
         for (Integer userId : uniqueLikes) {
             jdbcTemplate.update(
-                    """
-                    INSERT INTO film_likes (film_id, user_id)
-                    VALUES (?, ?)
-                    """,
+                    INSERT_FILM_LIKE_QUERY,
                     film.getId(),
                     userId
             );

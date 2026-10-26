@@ -19,6 +19,65 @@ import java.util.Set;
 @Repository("userDbStorage")
 public class UserDbStorage implements UserStorage {
 
+    private static final String INSERT_USER_QUERY = """
+            INSERT INTO users (email, login, name, birthday)
+            VALUES (?, ?, ?, ?)
+            """;
+
+    private static final String UPDATE_USER_QUERY = """
+            UPDATE users
+            SET email = ?, login = ?, name = ?, birthday = ?
+            WHERE id = ?
+            """;
+
+    private static final String FIND_USER_BY_ID_QUERY = """
+            SELECT id, email, login, name, birthday
+            FROM users
+            WHERE id = ?
+            """;
+
+    private static final String FIND_ALL_USER_IDS_QUERY =
+            "SELECT id FROM users ORDER BY id";
+
+    private static final String DELETE_USER_QUERY =
+            "DELETE FROM users WHERE id = ?";
+
+    private static final String FIND_FRIEND_IDS_QUERY = """
+            SELECT friend_id
+            FROM friendships
+            WHERE user_id = ?
+            ORDER BY friend_id
+            """;
+
+    private static final String FIND_FRIEND_IDS_FOR_UPDATE_QUERY =
+            "SELECT friend_id FROM friendships WHERE user_id = ?";
+
+    private static final String DELETE_USER_FRIENDSHIPS_QUERY =
+            "DELETE FROM friendships WHERE user_id = ?";
+
+    private static final String UPDATE_RECIPROCAL_FRIENDSHIP_STATUS_QUERY = """
+            UPDATE friendships
+            SET status = 'UNCONFIRMED'
+            WHERE user_id = ? AND friend_id = ?
+            """;
+
+    private static final String COUNT_RECIPROCAL_FRIENDSHIP_QUERY = """
+            SELECT COUNT(*)
+            FROM friendships
+            WHERE user_id = ? AND friend_id = ?
+            """;
+
+    private static final String INSERT_FRIENDSHIP_QUERY = """
+            INSERT INTO friendships (user_id, friend_id, status)
+            VALUES (?, ?, ?)
+            """;
+
+    private static final String CONFIRM_RECIPROCAL_FRIENDSHIP_QUERY = """
+            UPDATE friendships
+            SET status = 'CONFIRMED'
+            WHERE user_id = ? AND friend_id = ?
+            """;
+
     private final JdbcTemplate jdbcTemplate;
 
     public UserDbStorage(JdbcTemplate jdbcTemplate) {
@@ -28,16 +87,12 @@ public class UserDbStorage implements UserStorage {
     @Override
     @Transactional
     public User add(User user) {
-        String sql = """
-                INSERT INTO users (email, login, name, birthday)
-                VALUES (?, ?, ?, ?)
-                """;
-
         KeyHolder keyHolder = new GeneratedKeyHolder();
 
         jdbcTemplate.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(
-                    sql, Statement.RETURN_GENERATED_KEYS
+                    INSERT_USER_QUERY,
+                    Statement.RETURN_GENERATED_KEYS
             );
 
             statement.setString(1, user.getEmail());
@@ -48,7 +103,8 @@ public class UserDbStorage implements UserStorage {
                 statement.setDate(4, null);
             } else {
                 statement.setDate(
-                        4, Date.valueOf(user.getBirthday())
+                        4,
+                        Date.valueOf(user.getBirthday())
                 );
             }
 
@@ -78,14 +134,8 @@ public class UserDbStorage implements UserStorage {
         // Получаем текущие данные до изменения профиля.
         User existingUser = getById(user.getId());
 
-        String sql = """
-                UPDATE users
-                SET email = ?, login = ?, name = ?, birthday = ?
-                WHERE id = ?
-                """;
-
         int updatedRows = jdbcTemplate.update(
-                sql,
+                UPDATE_USER_QUERY,
                 user.getEmail(),
                 user.getLogin(),
                 user.getName(),
@@ -114,11 +164,7 @@ public class UserDbStorage implements UserStorage {
     @Override
     public User getById(int id) {
         List<User> users = jdbcTemplate.query(
-                """
-                SELECT id, email, login, name, birthday
-                FROM users
-                WHERE id = ?
-                """,
+                FIND_USER_BY_ID_QUERY,
                 (resultSet, rowNum) -> {
                     User user = new User();
 
@@ -146,12 +192,7 @@ public class UserDbStorage implements UserStorage {
         User user = users.get(0);
 
         List<Integer> friendIds = jdbcTemplate.query(
-                """
-                SELECT friend_id
-                FROM friendships
-                WHERE user_id = ?
-                ORDER BY friend_id
-                """,
+                FIND_FRIEND_IDS_QUERY,
                 (resultSet, rowNum) -> resultSet.getInt("friend_id"),
                 id
         );
@@ -164,7 +205,7 @@ public class UserDbStorage implements UserStorage {
     @Override
     public List<User> getAll() {
         List<Integer> userIds = jdbcTemplate.query(
-                "SELECT id FROM users ORDER BY id",
+                FIND_ALL_USER_IDS_QUERY,
                 (resultSet, rowNum) -> resultSet.getInt("id")
         );
 
@@ -180,10 +221,7 @@ public class UserDbStorage implements UserStorage {
     @Override
     @Transactional
     public boolean delete(int id) {
-        return jdbcTemplate.update(
-                "DELETE FROM users WHERE id = ?",
-                id
-        ) > 0;
+        return jdbcTemplate.update(DELETE_USER_QUERY, id) > 0;
     }
 
     private void saveFriends(User user) {
@@ -191,7 +229,7 @@ public class UserDbStorage implements UserStorage {
 
         Set<Integer> oldFriendIds = new HashSet<>(
                 jdbcTemplate.query(
-                        "SELECT friend_id FROM friendships WHERE user_id = ?",
+                        FIND_FRIEND_IDS_FOR_UPDATE_QUERY,
                         (resultSet, rowNum) ->
                                 resultSet.getInt("friend_id"),
                         userId
@@ -207,11 +245,7 @@ public class UserDbStorage implements UserStorage {
         for (Integer oldFriendId : oldFriendIds) {
             if (!newFriendIds.contains(oldFriendId)) {
                 jdbcTemplate.update(
-                        """
-                        UPDATE friendships
-                        SET status = 'UNCONFIRMED'
-                        WHERE user_id = ? AND friend_id = ?
-                        """,
+                        UPDATE_RECIPROCAL_FRIENDSHIP_STATUS_QUERY,
                         oldFriendId,
                         userId
                 );
@@ -220,17 +254,13 @@ public class UserDbStorage implements UserStorage {
 
         // Пересоздаём исходящие связи пользователя.
         jdbcTemplate.update(
-                "DELETE FROM friendships WHERE user_id = ?",
+                DELETE_USER_FRIENDSHIPS_QUERY,
                 userId
         );
 
         for (Integer friendId : newFriendIds) {
             Integer reciprocalCount = jdbcTemplate.queryForObject(
-                    """
-                    SELECT COUNT(*)
-                    FROM friendships
-                    WHERE user_id = ? AND friend_id = ?
-                    """,
+                    COUNT_RECIPROCAL_FRIENDSHIP_QUERY,
                     Integer.class,
                     friendId,
                     userId
@@ -244,10 +274,7 @@ public class UserDbStorage implements UserStorage {
                     : "UNCONFIRMED";
 
             jdbcTemplate.update(
-                    """
-                    INSERT INTO friendships (user_id, friend_id, status)
-                    VALUES (?, ?, ?)
-                    """,
+                    INSERT_FRIENDSHIP_QUERY,
                     userId,
                     friendId,
                     status
@@ -255,11 +282,7 @@ public class UserDbStorage implements UserStorage {
 
             if (confirmed) {
                 jdbcTemplate.update(
-                        """
-                        UPDATE friendships
-                        SET status = 'CONFIRMED'
-                        WHERE user_id = ? AND friend_id = ?
-                        """,
+                        CONFIRM_RECIPROCAL_FRIENDSHIP_QUERY,
                         friendId,
                         userId
                 );
