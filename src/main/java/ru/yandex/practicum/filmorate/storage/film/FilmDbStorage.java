@@ -1,7 +1,7 @@
 package ru.yandex.practicum.filmorate.storage.film;
 
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
@@ -9,12 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.model.Genre;
-import ru.yandex.practicum.filmorate.model.Mpa;
 
 import java.sql.Date;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
@@ -92,11 +89,14 @@ public class FilmDbStorage implements FilmStorage {
             """;
 
     private final JdbcTemplate jdbcTemplate;
+    private final FilmRowMapper filmRowMapper;
 
-    private final RowMapper<Film> filmRowMapper = this::mapFilm;
-
-    public FilmDbStorage(JdbcTemplate jdbcTemplate) {
+    public FilmDbStorage(
+            JdbcTemplate jdbcTemplate,
+            FilmRowMapper filmRowMapper
+    ) {
         this.jdbcTemplate = jdbcTemplate;
+        this.filmRowMapper = filmRowMapper;
     }
 
     @Override
@@ -148,7 +148,6 @@ public class FilmDbStorage implements FilmStorage {
     @Override
     @Transactional
     public Film update(Film film) {
-        // Проверяем существование фильма и сохраняем его текущие связи.
         Film existingFilm = getById(film.getId());
 
         int updatedRows = jdbcTemplate.update(
@@ -169,7 +168,6 @@ public class FilmDbStorage implements FilmStorage {
             );
         }
 
-        // Если связи не переданы, сохраняем существующие.
         if (film.getGenres() == null) {
             film.setGenres(existingFilm.getGenres());
         }
@@ -186,19 +184,20 @@ public class FilmDbStorage implements FilmStorage {
 
     @Override
     public Film getById(int id) {
-        List<Film> films = jdbcTemplate.query(
-                FIND_FILM_BY_ID_QUERY,
-                filmRowMapper,
-                id
-        );
+        Film film;
 
-        if (films.isEmpty()) {
+        try {
+            film = jdbcTemplate.queryForObject(
+                    FIND_FILM_BY_ID_QUERY,
+                    filmRowMapper,
+                    id
+            );
+        } catch (EmptyResultDataAccessException e) {
             throw new NotFoundException(
                     "Film with id=" + id + " not found"
             );
         }
 
-        Film film = films.get(0);
         film.setGenres(getGenres(id));
         film.setLikes(getLikes(id));
 
@@ -225,32 +224,6 @@ public class FilmDbStorage implements FilmStorage {
     @Transactional
     public boolean delete(int id) {
         return jdbcTemplate.update(DELETE_FILM_QUERY, id) > 0;
-    }
-
-    private Film mapFilm(ResultSet rs, int rowNum) throws SQLException {
-        Film film = new Film();
-
-        film.setId(rs.getInt("id"));
-        film.setName(rs.getString("name"));
-        film.setDescription(rs.getString("description"));
-
-        Date releaseDate = rs.getDate("release_date");
-        film.setReleaseDate(
-                releaseDate == null ? null : releaseDate.toLocalDate()
-        );
-
-        film.setDuration(rs.getInt("duration"));
-
-        Integer mpaId = rs.getObject("mpa_id", Integer.class);
-
-        if (mpaId != null) {
-            Mpa mpa = new Mpa();
-            mpa.setId(mpaId);
-            mpa.setName(rs.getString("mpa_name"));
-            film.setMpa(mpa);
-        }
-
-        return film;
     }
 
     private List<Genre> getGenres(int filmId) {

@@ -1,5 +1,6 @@
 package ru.yandex.practicum.filmorate.storage.user;
 
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -55,27 +56,9 @@ public class UserDbStorage implements UserStorage {
     private static final String DELETE_USER_FRIENDSHIPS_QUERY =
             "DELETE FROM friendships WHERE user_id = ?";
 
-    private static final String UPDATE_RECIPROCAL_FRIENDSHIP_STATUS_QUERY = """
-            UPDATE friendships
-            SET status = 'UNCONFIRMED'
-            WHERE user_id = ? AND friend_id = ?
-            """;
-
-    private static final String COUNT_RECIPROCAL_FRIENDSHIP_QUERY = """
-            SELECT COUNT(*)
-            FROM friendships
-            WHERE user_id = ? AND friend_id = ?
-            """;
-
     private static final String INSERT_FRIENDSHIP_QUERY = """
-            INSERT INTO friendships (user_id, friend_id, status)
-            VALUES (?, ?, ?)
-            """;
-
-    private static final String CONFIRM_RECIPROCAL_FRIENDSHIP_QUERY = """
-            UPDATE friendships
-            SET status = 'CONFIRMED'
-            WHERE user_id = ? AND friend_id = ?
+            INSERT INTO friendships (user_id, friend_id)
+            VALUES (?, ?)
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -102,10 +85,7 @@ public class UserDbStorage implements UserStorage {
             if (user.getBirthday() == null) {
                 statement.setDate(4, null);
             } else {
-                statement.setDate(
-                        4,
-                        Date.valueOf(user.getBirthday())
-                );
+                statement.setDate(4, Date.valueOf(user.getBirthday()));
             }
 
             return statement;
@@ -131,7 +111,6 @@ public class UserDbStorage implements UserStorage {
     @Override
     @Transactional
     public User update(User user) {
-        // Получаем текущие данные до изменения профиля.
         User existingUser = getById(user.getId());
 
         int updatedRows = jdbcTemplate.update(
@@ -151,7 +130,6 @@ public class UserDbStorage implements UserStorage {
             );
         }
 
-        // Если список друзей не передан, сохраняем существующие связи.
         if (user.getFriends() == null) {
             user.setFriends(existingUser.getFriends());
         }
@@ -163,33 +141,35 @@ public class UserDbStorage implements UserStorage {
 
     @Override
     public User getById(int id) {
-        List<User> users = jdbcTemplate.query(
-                FIND_USER_BY_ID_QUERY,
-                (resultSet, rowNum) -> {
-                    User user = new User();
+        User user;
 
-                    user.setId(resultSet.getInt("id"));
-                    user.setEmail(resultSet.getString("email"));
-                    user.setLogin(resultSet.getString("login"));
-                    user.setName(resultSet.getString("name"));
+        try {
+            user = jdbcTemplate.queryForObject(
+                    FIND_USER_BY_ID_QUERY,
+                    (resultSet, rowNum) -> {
+                        User result = new User();
 
-                    Date birthday = resultSet.getDate("birthday");
-                    user.setBirthday(
-                            birthday == null ? null : birthday.toLocalDate()
-                    );
+                        result.setId(resultSet.getInt("id"));
+                        result.setEmail(resultSet.getString("email"));
+                        result.setLogin(resultSet.getString("login"));
+                        result.setName(resultSet.getString("name"));
 
-                    return user;
-                },
-                id
-        );
+                        Date birthday = resultSet.getDate("birthday");
+                        result.setBirthday(
+                                birthday == null
+                                        ? null
+                                        : birthday.toLocalDate()
+                        );
 
-        if (users.isEmpty()) {
+                        return result;
+                    },
+                    id
+            );
+        } catch (EmptyResultDataAccessException e) {
             throw new NotFoundException(
                     "User with id=" + id + " not found"
             );
         }
-
-        User user = users.get(0);
 
         List<Integer> friendIds = jdbcTemplate.query(
                 FIND_FRIEND_IDS_QUERY,
@@ -227,66 +207,21 @@ public class UserDbStorage implements UserStorage {
     private void saveFriends(User user) {
         int userId = user.getId();
 
-        Set<Integer> oldFriendIds = new HashSet<>(
-                jdbcTemplate.query(
-                        FIND_FRIEND_IDS_FOR_UPDATE_QUERY,
-                        (resultSet, rowNum) ->
-                                resultSet.getInt("friend_id"),
-                        userId
-                )
-        );
-
         Set<Integer> newFriendIds = user.getFriends() == null
                 ? new HashSet<>()
                 : new HashSet<>(user.getFriends());
 
-        // Удалённая исходящая связь переводит обратную заявку
-        // в неподтверждённое состояние.
-        for (Integer oldFriendId : oldFriendIds) {
-            if (!newFriendIds.contains(oldFriendId)) {
-                jdbcTemplate.update(
-                        UPDATE_RECIPROCAL_FRIENDSHIP_STATUS_QUERY,
-                        oldFriendId,
-                        userId
-                );
-            }
-        }
-
-        // Пересоздаём исходящие связи пользователя.
         jdbcTemplate.update(
                 DELETE_USER_FRIENDSHIPS_QUERY,
                 userId
         );
 
         for (Integer friendId : newFriendIds) {
-            Integer reciprocalCount = jdbcTemplate.queryForObject(
-                    COUNT_RECIPROCAL_FRIENDSHIP_QUERY,
-                    Integer.class,
-                    friendId,
-                    userId
-            );
-
-            boolean confirmed = reciprocalCount != null
-                    && reciprocalCount > 0;
-
-            String status = confirmed
-                    ? "CONFIRMED"
-                    : "UNCONFIRMED";
-
             jdbcTemplate.update(
                     INSERT_FRIENDSHIP_QUERY,
                     userId,
-                    friendId,
-                    status
+                    friendId
             );
-
-            if (confirmed) {
-                jdbcTemplate.update(
-                        CONFIRM_RECIPROCAL_FRIENDSHIP_QUERY,
-                        friendId,
-                        userId
-                );
-            }
         }
     }
 }

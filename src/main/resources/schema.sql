@@ -50,12 +50,9 @@ CREATE TABLE IF NOT EXISTS film_likes (
 CREATE TABLE IF NOT EXISTS friendships (
     user_id INTEGER NOT NULL,
     friend_id INTEGER NOT NULL,
-    status VARCHAR(20) NOT NULL DEFAULT 'UNCONFIRMED',
     PRIMARY KEY (user_id, friend_id),
     CONSTRAINT chk_friendship_not_self
         CHECK (user_id <> friend_id),
-    CONSTRAINT chk_friendship_status
-        CHECK (status IN ('UNCONFIRMED', 'CONFIRMED')),
     CONSTRAINT fk_friendships_user
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_friendships_friend
