@@ -9,6 +9,7 @@ import ru.yandex.practicum.filmorate.model.User;
 
 import java.time.LocalDate;
 import java.util.Set;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -91,6 +92,105 @@ class UserDbStorageTest {
 
         assertTrue(firstFromDb.getFriends().contains(second.getId()));
         assertFalse(secondFromDb.getFriends().contains(first.getId()));
+    }
+
+    @Test
+    void shouldReturnCommonFriends() {
+        User first = userStorage.add(
+                createUser("first@example.com", "first")
+        );
+        User second = userStorage.add(
+                createUser("second@example.com", "second")
+        );
+        User commonFriend = userStorage.add(
+                createUser("friend@example.com", "friend")
+        );
+
+        first.setFriends(Set.of(commonFriend.getId()));
+        second.setFriends(Set.of(commonFriend.getId()));
+
+        userStorage.update(first);
+        userStorage.update(second);
+
+        List<User> commonFriends = userStorage.getCommonFriends(
+                first.getId(),
+                second.getId()
+        );
+
+        assertEquals(1, commonFriends.size());
+        assertEquals(commonFriend.getId(), commonFriends.get(0).getId());
+    }
+
+    @Test
+    void shouldReturnEmptyListWhenThereAreNoCommonFriends() {
+        User first = userStorage.add(
+                createUser("first@example.com", "first")
+        );
+        User second = userStorage.add(
+                createUser("second@example.com", "second")
+        );
+        User firstFriend = userStorage.add(
+                createUser("friend1@example.com", "friend1")
+        );
+        User secondFriend = userStorage.add(
+                createUser("friend2@example.com", "friend2")
+        );
+
+        first.setFriends(Set.of(firstFriend.getId()));
+        second.setFriends(Set.of(secondFriend.getId()));
+
+        userStorage.update(first);
+        userStorage.update(second);
+
+        List<User> commonFriends = userStorage.getCommonFriends(
+                first.getId(),
+                second.getId()
+        );
+
+        assertTrue(commonFriends.isEmpty());
+    }
+
+    @Test
+    void shouldReturnAllCommonFriends() {
+        User first = userStorage.add(
+                createUser("first@example.com", "first")
+        );
+        User second = userStorage.add(
+                createUser("second@example.com", "second")
+        );
+        User friend1 = userStorage.add(
+                createUser("friend1@example.com", "friend1")
+        );
+        User friend2 = userStorage.add(
+                createUser("friend2@example.com", "friend2")
+        );
+        User onlyFirstFriend = userStorage.add(
+                createUser("onlyfirst@example.com", "onlyfirst")
+        );
+
+        first.setFriends(Set.of(
+                friend1.getId(),
+                friend2.getId(),
+                onlyFirstFriend.getId()
+        ));
+        second.setFriends(Set.of(
+                friend1.getId(),
+                friend2.getId()
+        ));
+
+        userStorage.update(first);
+        userStorage.update(second);
+
+        List<User> commonFriends = userStorage.getCommonFriends(
+                first.getId(),
+                second.getId()
+        );
+
+        assertEquals(2, commonFriends.size());
+        assertTrue(commonFriends.stream()
+                .anyMatch(user -> user.getId() == friend1.getId()));
+        assertTrue(commonFriends.stream()
+                .anyMatch(user -> user.getId() == friend2.getId()));
     }
 
     private User createUser(String email, String login) {

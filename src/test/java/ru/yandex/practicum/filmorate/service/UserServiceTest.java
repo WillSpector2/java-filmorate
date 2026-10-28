@@ -123,6 +123,35 @@ class UserServiceTest {
         assertEquals(thirdUser.getId(), commonFriends.get(0).getId());
     }
 
+    @Test
+    void shouldReturnEmptyListWhenThereAreNoCommonFriends() {
+        List<User> commonFriends = userService.getCommonFriends(
+                firstUser.getId(),
+                secondUser.getId()
+        );
+
+        assertTrue(commonFriends.isEmpty());
+    }
+
+    @Test
+    void shouldReturnAllCommonFriendsAndExcludeNonCommonFriends() {
+        User fourthUser = createUser("fourth@example.com", "fourth");
+        userStorage.add(fourthUser);
+
+        userService.addFriend(firstUser.getId(), thirdUser.getId());
+        userService.addFriend(secondUser.getId(), thirdUser.getId());
+
+        userService.addFriend(firstUser.getId(), fourthUser.getId());
+
+        List<User> commonFriends = userService.getCommonFriends(
+                firstUser.getId(),
+                secondUser.getId()
+        );
+
+        assertEquals(1, commonFriends.size());
+        assertEquals(thirdUser.getId(), commonFriends.get(0).getId());
+    }
+
     private User createUser(String email, String login) {
         User user = new User();
 

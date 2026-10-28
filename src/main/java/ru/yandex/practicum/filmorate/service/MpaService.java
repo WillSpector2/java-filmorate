@@ -1,39 +1,30 @@
 package ru.yandex.practicum.filmorate.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Mpa;
+import ru.yandex.practicum.filmorate.storage.mpa.MpaStorage;
 
 import java.util.List;
 
 @Service
 public class MpaService {
 
-    private final List<Mpa> ratings = List.of(
-            createMpa(1, "G"),
-            createMpa(2, "PG"),
-            createMpa(3, "PG-13"),
-            createMpa(4, "R"),
-            createMpa(5, "NC-17")
-    );
+    private final MpaStorage mpaStorage;
+
+    @Autowired
+    public MpaService(
+            @Qualifier("mpaDbStorage") MpaStorage mpaStorage
+    ) {
+        this.mpaStorage = mpaStorage;
+    }
 
     public List<Mpa> getRatings() {
-        return ratings;
+        return mpaStorage.getAll();
     }
 
     public Mpa getMpaById(int id) {
-        return ratings.stream()
-                .filter(rating -> rating.getId() == id)
-                .findFirst()
-                .orElseThrow(() ->
-                        new NotFoundException("Рейтинг MPA с id=" + id + " не найден")
-                );
-    }
-
-    private static Mpa createMpa(int id, String name) {
-        Mpa mpa = new Mpa();
-        mpa.setId(id);
-        mpa.setName(name);
-        return mpa;
+        return mpaStorage.getById(id);
     }
 }

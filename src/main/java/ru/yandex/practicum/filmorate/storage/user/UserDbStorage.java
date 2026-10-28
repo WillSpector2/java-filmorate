@@ -50,15 +50,22 @@ public class UserDbStorage implements UserStorage {
             ORDER BY friend_id
             """;
 
-    private static final String FIND_FRIEND_IDS_FOR_UPDATE_QUERY =
-            "SELECT friend_id FROM friendships WHERE user_id = ?";
-
     private static final String DELETE_USER_FRIENDSHIPS_QUERY =
             "DELETE FROM friendships WHERE user_id = ?";
 
     private static final String INSERT_FRIENDSHIP_QUERY = """
             INSERT INTO friendships (user_id, friend_id)
             VALUES (?, ?)
+            """;
+
+    private static final String FIND_COMMON_FRIENDS_QUERY = """
+            SELECT u.id, u.email, u.login, u.name, u.birthday
+            FROM users u
+            JOIN friendships f1 ON f1.friend_id = u.id
+            JOIN friendships f2 ON f2.friend_id = u.id
+            WHERE f1.user_id = ?
+              AND f2.user_id = ?
+            ORDER BY u.id
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -199,6 +206,34 @@ public class UserDbStorage implements UserStorage {
     }
 
     @Override
+    public List<User> getCommonFriends(int userId, int otherId) {
+        return jdbcTemplate.query(
+                FIND_COMMON_FRIENDS_QUERY,
+                (resultSet, rowNum) -> {
+                    User user = new User();
+
+                    user.setId(resultSet.getInt("id"));
+                    user.setEmail(resultSet.getString("email"));
+                    user.setLogin(resultSet.getString("login"));
+                    user.setName(resultSet.getString("name"));
+
+                    Date birthday = resultSet.getDate("birthday");
+                    user.setBirthday(
+                            birthday == null
+                                    ? null
+                                    : birthday.toLocalDate()
+                    );
+
+                    user.setFriends(new HashSet<>());
+
+                    return user;
+                },
+                userId,
+                otherId
+        );
+    }
+
+    @Override
     @Transactional
     public boolean delete(int id) {
         return jdbcTemplate.update(DELETE_USER_QUERY, id) > 0;
@@ -211,10 +246,7 @@ public class UserDbStorage implements UserStorage {
                 ? new HashSet<>()
                 : new HashSet<>(user.getFriends());
 
-        jdbcTemplate.update(
-                DELETE_USER_FRIENDSHIPS_QUERY,
-                userId
-        );
+        jdbcTemplate.update(DELETE_USER_FRIENDSHIPS_QUERY, userId);
 
         for (Integer friendId : newFriendIds) {
             jdbcTemplate.update(

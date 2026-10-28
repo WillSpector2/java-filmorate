@@ -9,9 +9,7 @@ import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 public class UserService {
@@ -32,7 +30,6 @@ public class UserService {
     public User updateUser(User user) {
         User existingUser = userStorage.getById(user.getId());
 
-        // Обновление профиля не должно удалять существующие связи дружбы.
         user.setFriends(existingUser.getFriends());
 
         return userStorage.update(user);
@@ -89,23 +86,9 @@ public class UserService {
     }
 
     public List<User> getCommonFriends(int userId, int otherId) {
-        List<User> userFriends = getFriends(userId);
-        List<User> otherFriends = getFriends(otherId);
+        userStorage.getById(userId);
+        userStorage.getById(otherId);
 
-        Set<Integer> otherFriendIds = new HashSet<>();
-
-        for (User friend : otherFriends) {
-            otherFriendIds.add(friend.getId());
-        }
-
-        List<User> commonFriends = new ArrayList<>();
-
-        for (User friend : userFriends) {
-            if (otherFriendIds.contains(friend.getId())) {
-                commonFriends.add(friend);
-            }
-        }
-
-        return commonFriends;
+        return userStorage.getCommonFriends(userId, otherId);
     }
 }
