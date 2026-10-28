@@ -15,4 +15,6 @@ public interface UserStorage {
     List<User> getAll();
 
     boolean delete(int id);
+
+    List<User> getCommonFriends(int userId, int otherId);
 }

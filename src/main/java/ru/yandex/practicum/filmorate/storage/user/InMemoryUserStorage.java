@@ -5,7 +5,10 @@ import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.User;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 public class InMemoryUserStorage implements UserStorage {
@@ -41,6 +44,21 @@ public class InMemoryUserStorage implements UserStorage {
     @Override
     public List<User> getAll() {
         return new ArrayList<>(users);
+    }
+
+    @Override
+    public List<User> getCommonFriends(int userId, int otherId) {
+        User user = getById(userId);
+        User otherUser = getById(otherId);
+
+        Set<Integer> otherFriendIds = new HashSet<>(
+                otherUser.getFriends()
+        );
+
+        return user.getFriends().stream()
+                .filter(otherFriendIds::contains)
+                .map(this::getById)
+                .collect(Collectors.toList());
     }
 
     @Override

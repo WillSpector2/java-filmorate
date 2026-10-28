@@ -2,10 +2,15 @@ package ru.yandex.practicum.filmorate.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Film;
+import ru.yandex.practicum.filmorate.model.Genre;
+import ru.yandex.practicum.filmorate.model.Mpa;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.storage.film.FilmStorage;
 import ru.yandex.practicum.filmorate.storage.film.InMemoryFilmStorage;
+import ru.yandex.practicum.filmorate.storage.genre.GenreStorage;
+import ru.yandex.practicum.filmorate.storage.mpa.MpaStorage;
 import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
@@ -28,7 +33,63 @@ class FilmServiceTest {
     void setUp() {
         filmStorage = new InMemoryFilmStorage();
         userStorage = new InMemoryUserStorage();
-        filmService = new FilmService(filmStorage, userStorage);
+
+        GenreStorage genreStorage = new GenreStorage() {
+            @Override
+            public List<Genre> getAll() {
+                return List.of();
+            }
+
+            @Override
+            public Genre getById(int id) {
+                Genre genre = new Genre();
+                genre.setId(id);
+
+                switch (id) {
+                    case 1 -> genre.setName("Комедия");
+                    case 2 -> genre.setName("Драма");
+                    case 3 -> genre.setName("Мультфильм");
+                    case 4 -> genre.setName("Триллер");
+                    case 5 -> genre.setName("Документальный");
+                    case 6 -> genre.setName("Боевик");
+                    default -> throw new NotFoundException(
+                            "Жанр с id=" + id + " не найден"
+                    );
+                }
+
+                return genre;
+            }
+        };
+
+        MpaStorage mpaStorage = new MpaStorage() {
+            @Override
+            public List<Mpa> getAll() {
+                return List.of(
+                        createMpa(1, "G"),
+                        createMpa(2, "PG"),
+                        createMpa(3, "PG-13"),
+                        createMpa(4, "R"),
+                        createMpa(5, "NC-17")
+                );
+            }
+
+            @Override
+            public Mpa getById(int id) {
+                return getAll().stream()
+                        .filter(mpa -> mpa.getId() == id)
+                        .findFirst()
+                        .orElseThrow(() -> new NotFoundException(
+                                "Рейтинг MPA с id=" + id + " не найден"
+                        ));
+            }
+        };
+
+        filmService = new FilmService(
+                filmStorage,
+                userStorage,
+                new GenreService(genreStorage),
+                new MpaService(mpaStorage)
+        );
 
         firstUser = createUser("first@example.com", "first");
         secondUser = createUser("second@example.com", "second");
@@ -131,5 +192,12 @@ class FilmServiceTest {
         user.setBirthday(LocalDate.of(1990, 1, 1));
 
         return user;
+    }
+
+    private Mpa createMpa(int id, String name) {
+        Mpa mpa = new Mpa();
+        mpa.setId(id);
+        mpa.setName(name);
+        return mpa;
     }
 }
